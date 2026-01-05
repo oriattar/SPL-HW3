@@ -18,6 +18,7 @@ public class Reactor<T> implements Server<T> {
     private final Supplier<MessagingProtocol<T>> protocolFactory;
     private final Supplier<MessageEncoderDecoder<T>> readerFactory;
     private final ActorThreadPool pool;
+    private final ConnectionsImpl<T> connections;
     private Selector selector;
 
     private Thread selectorThread;
@@ -33,6 +34,7 @@ public class Reactor<T> implements Server<T> {
         this.port = port;
         this.protocolFactory = protocolFactory;
         this.readerFactory = readerFactory;
+        this.connections = new ConnectionsImpl<>();
     }
 
     @Override
@@ -100,6 +102,7 @@ public class Reactor<T> implements Server<T> {
                 protocolFactory.get(),
                 clientChan,
                 this);
+        this.connections.connect(handler);
         clientChan.register(selector, SelectionKey.OP_READ, handler);
     }
 
