@@ -128,7 +128,7 @@ public class SubscriptionManager<T>
         List<Subscription> list = this.subscriptions.get(channel); //going over the list
         for(Subscription s:list)
         {
-            String res = "MESSAGE\nsubscription:"+s.getId() + "\nmessage-id:"+mesIdGen.getNextId()+"\ndestination:"+channel+"\n\n"+message+"\n^@";
+            String res = "MESSAGE\nsubscription:"+s.getId() + "\nmessage-id:"+mesIdGen.getNextId()+"\ndestination:"+channel+"\n\n"+message+"\n\0";
             s.send((T)res); //sends mes
         }
     }
@@ -139,7 +139,7 @@ public class SubscriptionManager<T>
     public void disconnectUser(int connectionId)
     {
         if(!this.subDict.containsKey(connectionId))
-            throw new RuntimeException("Cannot remove an unregistered user from the manager");
+            return;
 
         List<Subscription> list = this.subDict.get(connectionId);
         for(Subscription s:list) // going over user's subscription
