@@ -1,25 +1,29 @@
-package bgu.spl.net.srv;
+package bgu.spl.net.srv.StompSrv;
 
 import bgu.spl.net.api.MessageEncoderDecoder;
 import bgu.spl.net.api.MessagingProtocol;
+import bgu.spl.net.api.StompMessagingProtocol;
+
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.function.Supplier;
+import bgu.spl.net.srv.*;
 
-public abstract class BaseServer<T> implements Server<T> {
+
+public abstract class StompBaseServer implements Server<String> {
 
     private final int port;
-    private final Supplier<MessagingProtocol<T>> protocolFactory;
-    private final Supplier<MessageEncoderDecoder<T>> encdecFactory;
+    private final Supplier<StompMessagingProtocol<String>> protocolFactory;
+    private final Supplier<MessageEncoderDecoder<String>> encdecFactory;
     private ServerSocket sock;
     private UniqueIDGenerator conIdGen; //Object that handles generating unique ids from the free pool.
-    private Connections<T> connections; //Connections object to handle connection management.
+    private Connections<String> connections; //Connections object to handle connection management.
 
-    public BaseServer(
+    public StompBaseServer(
             int port,
-            Supplier<MessagingProtocol<T>> protocolFactory,
-            Supplier<MessageEncoderDecoder<T>> encdecFactory) {
+            Supplier<StompMessagingProtocol<String>> protocolFactory,
+            Supplier<MessageEncoderDecoder<String>> encdecFactory) {
 
         this.port = port;
         this.protocolFactory = protocolFactory;
@@ -41,10 +45,14 @@ public abstract class BaseServer<T> implements Server<T> {
 
                 Socket clientSock = serverSock.accept();
 
-                BlockingConnectionHandler<T> handler = new BlockingConnectionHandler<>(
+                StompBlockingConnectionHandler handler = new StompBlockingConnectionHandler(
                         clientSock,
                         encdecFactory.get(),
-                        protocolFactory.get());
+                        protocolFactory.get(),
+                        connections,
+                        conIdGen.getNextId());
+
+                        
                 
                 execute(handler);
             }
@@ -60,6 +68,6 @@ public abstract class BaseServer<T> implements Server<T> {
 			sock.close();
     }
 
-    protected abstract void execute(BlockingConnectionHandler<T>  handler);
+    protected abstract void execute(StompBlockingConnectionHandler handler);
 
 }

@@ -4,6 +4,9 @@ import bgu.spl.net.api.MessageEncoderDecoder;
 import bgu.spl.net.api.MessagingProtocol;
 import java.io.Closeable;
 import java.util.function.Supplier;
+import bgu.spl.net.api.StompMessagingProtocol;
+import bgu.spl.net.srv.StompSrv.StompBaseServer;
+import bgu.spl.net.srv.StompSrv.StompBlockingConnectionHandler;
 
 public interface Server<T> extends Closeable {
 
@@ -31,7 +34,19 @@ public interface Server<T> extends Closeable {
                 new Thread(handler).start();
             }
         };
+    }
 
+    public static Server<String> StompThreadPerClient(
+            int port,
+            Supplier<StompMessagingProtocol<String>> protocolFactory,
+            Supplier<MessageEncoderDecoder<String>> encoderDecoderFactory) {
+
+        return new StompBaseServer(port, protocolFactory, encoderDecoderFactory) {
+            @Override
+            protected void execute(StompBlockingConnectionHandler handler) {
+                new Thread(handler).start();
+            }
+        };
     }
 
     /**
