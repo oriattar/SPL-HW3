@@ -21,12 +21,14 @@
 /workspaces/SPL-HW3/server/src/main/java/bgu/spl/net/srv/NonBlockingConnectionHandler.java
 /workspaces/SPL-HW3/server/src/main/java/bgu/spl/net/impl/stomp/StompServer.java
 /workspaces/SPL-HW3/server/src/main/java/bgu/spl/net/srv/ActorThreadPool.java
+/workspaces/SPL-HW3/server/src/main/java/bgu/spl/net/srv/authen/AuthenticationManager.java
 /workspaces/SPL-HW3/server/src/main/java/bgu/spl/net/impl/rci/ObjectEncoderDecoder.java
 /workspaces/SPL-HW3/server/src/main/java/bgu/spl/net/srv/Server.java
 /workspaces/SPL-HW3/server/src/main/java/bgu/spl/net/srv/StompSrv/StompMsgProtocol.java
 /workspaces/SPL-HW3/server/src/main/java/bgu/spl/net/impl/echo/LineMessageEncoderDecoder.java
 /workspaces/SPL-HW3/server/src/main/java/bgu/spl/net/impl/data/User.java
 /workspaces/SPL-HW3/server/src/main/java/bgu/spl/net/api/MessagingProtocol.java
+/workspaces/SPL-HW3/server/src/main/java/bgu/spl/net/srv/authen/User.java
 /workspaces/SPL-HW3/server/src/main/java/bgu/spl/net/impl/rci/RemoteCommandInvocationProtocol.java
 /workspaces/SPL-HW3/server/src/main/java/bgu/spl/net/impl/rci/RCIClient.java
 /workspaces/SPL-HW3/server/src/main/java/bgu/spl/net/impl/echo/EchoProtocol.java

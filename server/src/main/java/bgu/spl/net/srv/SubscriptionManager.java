@@ -4,9 +4,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 
-public class SubscriptionManager<T>
+public class SubscriptionManager
 {
     /*
     The subscriptionManager class, Handles subscrition maintance and allowes message sending to a subscriptions.
@@ -21,33 +22,28 @@ public class SubscriptionManager<T>
         Name of the subscription channel.
         */
         private int subId;
-        private ConnectionHandler<T> client;
+        private int conId;
         private String channel;
         
         /*
         Constructs a subscription
         */
-        public Subscription(int subId,ConnectionHandler<T> con,String channel)
+        public Subscription(int subId,int conId,String channel)
         {
             this.channel = channel;
             this.subId =subId;
-            this.client = con;
+            this.conId = conId;
         }
 
         public int getId(){return this.subId;}
 
+        public int getConId(){return this.conId;}
+
         public String getChannel(){return this.channel;}
 
-        /*
-        Handles message sending via subscription
-        */
-        public void send(T message){
-            client.send(message);
-        }
     };
     private ConcurrentHashMap<String,List<Subscription>> subscriptions; // Saves the subscriptions by their channel name.
     private ConcurrentHashMap<Integer,List<Subscription>> subDict; // Saves the subscriptions by ConnectionID.
-    private UniqueIDGenerator mesIdGen;
 
 
     /*
@@ -57,12 +53,7 @@ public class SubscriptionManager<T>
     {
         this.subscriptions = new ConcurrentHashMap<>();
         this.subDict = new ConcurrentHashMap<>();
-        this.mesIdGen = new UniqueIDGenerator();
-    }
-
-    public Subscription createSubscription(int subId,ConnectionHandler<T> con,String channel)
-    {
-        return new Subscription(subId,con,channel);
+        
     }
 
     /*
@@ -70,7 +61,7 @@ public class SubscriptionManager<T>
     */
     public void addTopicIfNeeded(String channel){
         if(!this.subscriptions.containsKey(channel))
-            this.subscriptions.put(channel, new ArrayList<>());
+            this.subscriptions.put(channel, new CopyOnWriteArrayList<>());
     }
 
     /*
@@ -85,21 +76,29 @@ public class SubscriptionManager<T>
     /*
     Handles user subscription to a channel.
     */
-    public void subscribe(Subscription s,int subId,int conId){
+    public void subscribe(int subId,int conId,String channel){
 
-        addTopicIfNeeded(s.getChannel()); // adds topic
+        Subscription toAdd = new Subscription(subId,conId,channel);
+        addTopicIfNeeded(channel); // adds topic
 
-        this.subscriptions.get(s.getChannel()).add(s);
+        this.subscriptions.get(channel).add(toAdd);
         if(!this.subDict.containsKey(conId)) //register in the dict if the user is new.
         {
-            this.subDict.put(conId,new ArrayList<>());
+            this.subDict.put(conId,new CopyOnWriteArrayList<>());
         }
-        this.subDict.get(conId).add(s); //adds to the user dict.
+        this.subDict.get(conId).add(toAdd); //adds to the user dict.
     }
 
+    /*
+    method that returns the list of subscriptions subscribed to a channel.
+    */
+    public List<Subscription> getSubscriptionsByChannel(String channel)
+    {
+        return this.subscriptions.get(channel);
+    }
 
     /*
-    
+    Method that handles unsubscribing from a channel, using the subscription ID.
     */
     public void unsubscribe(int subscriptionId,int connectionId)
     {
@@ -112,27 +111,11 @@ public class SubscriptionManager<T>
             Subscription s = list.get(i);
             if(s.getId() == subscriptionId)
             {
-                removeUser(s);
+                removeSub(s);
                 return;
             }
         }
     }
-
-    /*
-    Method that broadcasts a message to each subscribed user on the channel.
-    */
-    public void broadcastChannel(String channel,T message){
-        if(!this.subscriptions.containsKey(channel))
-            throw new RuntimeException("Cannot broadcast a message on a non existing topic.");
-
-        List<Subscription> list = this.subscriptions.get(channel); //going over the list
-        for(Subscription s:list)
-        {
-            String res = "MESSAGE\nsubscription:"+s.getId() + "\nmessage-id:"+mesIdGen.getNextId()+"\ndestination:"+channel+"\n\n"+message+"\n\0";
-            s.send((T)res); //sends mes
-        }
-    }
-
     /*
     Method that handles unsubscribing from all the channels that the user is subscribed to.
     */
@@ -144,18 +127,37 @@ public class SubscriptionManager<T>
         List<Subscription> list = this.subDict.get(connectionId);
         for(Subscription s:list) // going over user's subscription
         {
-            removeUser(s);
+            removeSub(s);
         }
         this.subDict.remove(connectionId); // remove user entry
     }
 
     /*
-    Helper method that removes a user from the channel mapping.
+    Helper method that removes a subscription from the channel mapping.
     */
-    private void removeUser(Subscription s)
+    private void removeSub(Subscription s)
     {
+        System.out.println("Removing subscription id: " + s.getId() + " from channel: " + s.getChannel() + " for user id: " + s.getConId());
         this.subscriptions.get(s.getChannel()).remove(s); //removes it from the list (by channel)
         this.removeTopicIfNeeded(s.getChannel());
+
+    }
+
+    /*
+    Method that checks if a user is subscribed to a given channel.
+    returns true iff user is subscribed to the input channel.
+    */
+    public boolean isSubscribedToChannel(String channel,int connectionId)
+    {
+        if(!this.subscriptions.containsKey(channel))
+             return false;
+        for(Subscription s:this.subscriptions.get(channel))
+        {
+            if(s.getConId() == connectionId)
+                return true;
+        }
+
+        return false;
     }
 
 }

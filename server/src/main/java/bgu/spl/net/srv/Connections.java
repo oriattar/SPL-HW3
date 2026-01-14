@@ -12,8 +12,16 @@ public interface Connections<T> {
 
     void unsubscribe(int subId, int connectionId);
 
+    boolean isSubscribed(int connectionId, String channel);
+
     void send(String channel, T msg);
 
     void disconnect(int connectionId);
+
+    void login(String userName,String password);
+
+    void logout(String userName);
+
+    boolean isUserLoggedIn(String userName);
     
 }

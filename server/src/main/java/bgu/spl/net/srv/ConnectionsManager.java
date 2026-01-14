@@ -1,10 +1,7 @@
 package bgu.spl.net.srv;
-import java.sql.Connection;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.HashMap;
-import java.util.Set;
+
 import java.util.concurrent.ConcurrentHashMap;
+import bgu.spl.net.srv.authen.AuthenticationManager;
 public class ConnectionsManager<T> implements Connections<T> {
 
     /*
@@ -14,7 +11,9 @@ public class ConnectionsManager<T> implements Connections<T> {
     
     */
     private ConcurrentHashMap<Integer,ConnectionHandler<T>> connecetions;
-    private SubscriptionManager<T> subManager;
+    private SubscriptionManager subManager;
+    private AuthenticationManager authManager;
+    private UniqueIDGenerator idGen;
    
     
     /*
@@ -22,7 +21,9 @@ public class ConnectionsManager<T> implements Connections<T> {
     */
     public ConnectionsManager(){
         this.connecetions = new ConcurrentHashMap<>();
-        this.subManager = new SubscriptionManager<>();
+        this.subManager = new SubscriptionManager();
+        authManager = new AuthenticationManager();
+        this.idGen = new UniqueIDGenerator();
     }
 
     /*
@@ -31,6 +32,7 @@ public class ConnectionsManager<T> implements Connections<T> {
     public void connect(ConnectionHandler<T> newClient,int conId)
     {
         this.connecetions.put(conId,newClient); // insert a new entry in the dict, with a new generated id
+        
     }
 
     /*
@@ -52,8 +54,7 @@ public class ConnectionsManager<T> implements Connections<T> {
     */
     public void subscribe(String channel,int connectionId,int subId)
     {
-        SubscriptionManager<T>.Subscription sub = this.subManager.createSubscription(subId,this.connecetions.get(connectionId),channel);
-        this.subManager.subscribe(sub,subId,connectionId);
+        this.subManager.subscribe(subId,connectionId,channel);
     }
 
     /*
@@ -68,16 +69,63 @@ public class ConnectionsManager<T> implements Connections<T> {
     Method that sends the message to sub manager to broadcast to the desired channel.
     */
     public void send(String channel, T msg)
-    {
-        this.subManager.broadcastChannel(channel, msg);
+    {   
+        System.out.println("Sending message from to channel: " + channel +" Msg: " + msg.toString());
+        
+        for(SubscriptionManager.Subscription sub:this.subManager.getSubscriptionsByChannel(channel))
+        {
+            String message = "MESSAGE\nsubscription:"+sub.getId()+"\nmessage-id:"+idGen.getNextId()+"\ndestination:"+channel+"\n\n"+msg.toString()+"\0";
+            this.send(sub.getConId(),(T)message);
+        }
     }
     /*
     Deletes a connection from the dict using the connection ID.
     */
     public void disconnect(int connectionId){
         
+        System.out.println("Disconnecting user with id: " + connectionId);
         this.connecetions.remove(connectionId);
         this.subManager.disconnectUser(connectionId);
     }
-    
+
+    /*
+    Method that checks if a user is subscribed to a channel.
+    */
+    public boolean isSubscribed(int connectionId, String channel)
+    {
+        return this.subManager.isSubscribedToChannel(channel,connectionId);
+    }
+    /*
+    Method that handles user login and registration.
+    */
+    public void login(String userName,String password)
+    {
+        if(!this.authManager.isRegistered(userName))
+        {
+            this.authManager.register(userName, password);
+            System.out.println("Registered new user: " + userName);
+        }
+        else
+        {
+            authManager.login(userName, password);
+            System.out.println("User connected with name: " + userName);
+        }
+
+    }
+    /*
+    Handles user logout from auth manager.
+    */
+    public void logout(String userName)
+    {
+        this.authManager.logout(userName);
+        System.out.println("User logged out with name: " + userName);
+    }
+
+    /*
+    Method that checks if a user is logged in.
+    */
+    public boolean isUserLoggedIn(String userName)
+    {
+        return this.authManager.isConnected(userName);
+    }
 }

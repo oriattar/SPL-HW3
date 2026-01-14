@@ -13,8 +13,6 @@ public abstract class BaseServer<T> implements Server<T> {
     private final Supplier<MessagingProtocol<T>> protocolFactory;
     private final Supplier<MessageEncoderDecoder<T>> encdecFactory;
     private ServerSocket sock;
-    private UniqueIDGenerator conIdGen; //Object that handles generating unique ids from the free pool.
-    private Connections<T> connections; //Connections object to handle connection management.
 
     public BaseServer(
             int port,
@@ -25,8 +23,6 @@ public abstract class BaseServer<T> implements Server<T> {
         this.protocolFactory = protocolFactory;
         this.encdecFactory = encdecFactory;
 		this.sock = null;
-        this.conIdGen = new UniqueIDGenerator();
-        this.connections = new ConnectionsManager<>();
     }
 
     @Override

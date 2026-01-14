@@ -5,29 +5,20 @@ import java.util.HashMap;
 import bgu.spl.net.api.StompMessagingProtocol;
 import bgu.spl.net.srv.ConnectionHandler;
 import bgu.spl.net.srv.Connections;
+import bgu.spl.net.srv.authen.AuthenticationManager;
 
 public class StompMsgProtocol implements StompMessagingProtocol<String> {
 
     private Connections<String> cManager;
     private int conId;
-    private ConnectionHandler<String> ch;
     private boolean shouldTerminate = false;
+    private String userName = "";
+    
 
     public void start(int connectionId, Connections<String> connections)
     {
         this.cManager = connections;
         this.conId = connectionId;
-        if(ch == null)
-            throw new IllegalStateException("Connection handler is not set");
-        cManager.connect(ch,connectionId);
-    }
-
-    public void setConHandler(ConnectionHandler<String> ch)
-    {
-        if(ch == null)
-            throw new IllegalArgumentException("Connection handler cannot be null");
-        
-        this.ch = ch;
     }
 
     public void process(String message)
@@ -49,36 +40,51 @@ public class StompMsgProtocol implements StompMessagingProtocol<String> {
                 headers.put(temp[0], temp[1]);
                 i++;
             }
-           StringBuilder bodyBuilder = new StringBuilder();
+
+           String body = "";
 
             for (int j = i + 1; j < lines.length; j++) {
-                bodyBuilder.append(lines[j]);
+                body+=lines[j];
                 if (j < lines.length - 1) {
-                    bodyBuilder.append("\n");
+                    body+="\n";
                 }
             }
-
-            String body = bodyBuilder.toString();
         
             switch (command) {
                 case "CONNECT": 
                     solveConnect(headers);
+                    if(headers.containsKey("receipt"))
+                        sendRecipt(Integer.parseInt(headers.get("receipt")));
                     break;
                 case "SEND":
+                    conCheck();
                     solveSend(headers, body);
+                    if(headers.containsKey("receipt"))
+                        sendRecipt(Integer.parseInt(headers.get("receipt")));
                     break;
                 case "SUBSCRIBE":
+                    conCheck();
                     solveSubscribe(headers);
+                    if(headers.containsKey("receipt"))
+                        sendRecipt(Integer.parseInt(headers.get("receipt")));
                     break;
                 case "UNSUBSCRIBE":
+                    conCheck();
                     solveUnsubscribe(headers);
+                    if(headers.containsKey("receipt"))
+                        sendRecipt(Integer.parseInt(headers.get("receipt")));
                     break;
                 case "DISCONNECT":
+                    conCheck();
+                    if(headers.containsKey("receipt"))
+                        sendRecipt(Integer.parseInt(headers.get("receipt")));
+
                     solveDisconnect(headers);
                     break;
                 default://ERROR
                     throw new RuntimeException("Unknown command");
             }
+            
         }
         catch (Exception e){
             System.out.println(e.getMessage() + " On Connection ID: " + conId);
@@ -89,7 +95,14 @@ public class StompMsgProtocol implements StompMessagingProtocol<String> {
 
     private void solveConnect(HashMap<String,String> headers)
     {
-        System.out.println("User connected with id: " + conId);
+        if(!headers.containsKey("login") || !headers.containsKey("passcode"))
+            throw new IllegalArgumentException("Did not contain login or passcode headers, which are required for connection.");
+
+        String user = headers.get("login");
+        String pass = headers.get("passcode");
+
+        cManager.login(user, pass);
+        this.userName = user;
         cManager.send(conId, "CONNECTED\nversion:1.2\n\n\0");
     }
     
@@ -98,9 +111,12 @@ public class StompMsgProtocol implements StompMessagingProtocol<String> {
        if(!headers.containsKey("destination"))
            throw new IllegalArgumentException("Did not contain a destination header, which is required for message propagation.");
 
-       System.out.println("Sending message from user id: " + conId + " to channel: " + headers.get("destination"));
+       if(!cManager.isSubscribed(conId,headers.get("destination")))
+           throw new IllegalArgumentException("Cant send message to a channel the user is not subscribed to.");
+       
        String channel = headers.get("destination");
-       cManager.send(channel,body + "\0");
+       
+       cManager.send(channel,body);
     }
 
     private void solveSubscribe(HashMap<String,String> headers)
@@ -129,13 +145,6 @@ public class StompMsgProtocol implements StompMessagingProtocol<String> {
 
     private void solveDisconnect(HashMap<String,String> headers)
     {   
-        if(headers.containsKey("receipt"))
-        {
-        int reciptId = Integer.parseInt(headers.get("receipt"));
-        ///
-        /// 
-        }
-
         handleDisconnect();
     }
 
@@ -151,6 +160,9 @@ public class StompMsgProtocol implements StompMessagingProtocol<String> {
         this.shouldTerminate = true;
         
         cManager.disconnect(conId);
+        if(cManager.isUserLoggedIn(userName))
+            cManager.logout(userName);
+        userName = "";
     }
 	/**
      * @return true if the connection should be terminated
@@ -160,4 +172,19 @@ public class StompMsgProtocol implements StompMessagingProtocol<String> {
         return shouldTerminate;
     }
     
+    /*
+    Method that checks if the handler is connected to the server.
+    if not, throws an exception.
+    */
+    public void conCheck()
+    {
+        if(userName == "" || !cManager.isUserLoggedIn(userName))
+            throw new IllegalStateException("Client is not logged in to the server.");
+    }
+
+    public void sendRecipt(int reciptId)
+    {
+        String res = "RECEIPT\nreceipt-id:"+reciptId+"\n\n\0";
+        cManager.send(conId, res);
+    }
 }

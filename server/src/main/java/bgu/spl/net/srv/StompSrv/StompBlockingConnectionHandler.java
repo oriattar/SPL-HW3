@@ -25,7 +25,7 @@ public class StompBlockingConnectionHandler implements Runnable, ConnectionHandl
             this.encdec = reader;
             this.protocol = protocol;
 
-            protocol.setConHandler(this); // set this connection handler in the protocol
+            connections.connect(this, conId);
             protocol.start(conId,connections);
         }
 
