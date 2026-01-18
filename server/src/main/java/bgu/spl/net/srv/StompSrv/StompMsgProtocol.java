@@ -23,13 +23,14 @@ public class StompMsgProtocol implements StompMessagingProtocol<String> {
 
     public void process(String message)
     {
+        HashMap<String, String> headers = new HashMap<>();
         try{
             String[] lines = message.split("\\R"); // Split by new line characters
             if (lines.length == 0 || lines[0].isEmpty()) {
                 throw new IllegalArgumentException("Empty message or missing command");
             }
             String command = lines[0];
-            HashMap<String, String> headers = new HashMap<>();
+            
             int i = 1;
 
             while (i < lines.length && !lines[i].isEmpty() && lines[i].charAt(0) != '\0') {
@@ -79,7 +80,7 @@ public class StompMsgProtocol implements StompMessagingProtocol<String> {
                     if(headers.containsKey("receipt"))
                         sendRecipt(Integer.parseInt(headers.get("receipt")));
 
-                    solveDisconnect(headers);
+                    handleDisconnect();
                     break;
                 default://ERROR
                     throw new RuntimeException("Unknown command");
@@ -88,7 +89,7 @@ public class StompMsgProtocol implements StompMessagingProtocol<String> {
         }
         catch (Exception e){
             System.out.println(e.getMessage() + " On Connection ID: " + conId);
-            solveError(e.getMessage());
+            solveError(e.getMessage(),headers.get("receipt"));
         }
 
     }
@@ -101,7 +102,7 @@ public class StompMsgProtocol implements StompMessagingProtocol<String> {
         String user = headers.get("login");
         String pass = headers.get("passcode");
 
-        cManager.login(user, pass);
+        cManager.login(user, pass, conId);
         this.userName = user;
         cManager.send(conId, "CONNECTED\nversion:1.2\n\n\0");
     }
@@ -143,14 +144,13 @@ public class StompMsgProtocol implements StompMessagingProtocol<String> {
         System.out.println("User with id: " + conId + " unsubscribed from subscription id: " + subId);
     }
 
-    private void solveDisconnect(HashMap<String,String> headers)
-    {   
-        handleDisconnect();
-    }
-
-    private void solveError(String errorMsg)
+    private void solveError(String errorMsg,String receipt)
     {
-        String res = "ERROR\nmessage:"+errorMsg+"\n\n\0";
+        String res="";
+        if(receipt != null)
+            res = "ERROR\nreceipt-id: message-" + receipt + "\nmessage:"+ errorMsg+"\n\n\0";
+        else
+            res = "ERROR\nmessage:"+ errorMsg+"\n\n\0";
         cManager.send(conId, res);
         handleDisconnect();
     }

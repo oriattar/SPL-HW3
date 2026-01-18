@@ -1,15 +1,12 @@
 package bgu.spl.net.srv.StompSrv;
 
 import bgu.spl.net.api.MessageEncoderDecoder;
-import bgu.spl.net.api.MessagingProtocol;
 import bgu.spl.net.api.StompMessagingProtocol;
-import bgu.spl.net.srv.UniqueIDGenerator;
 import bgu.spl.net.srv.Connections; 
-import bgu.spl.net.srv.authen.AuthenticationManager;
-
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import bgu.spl.net.srv.*;
 
@@ -20,7 +17,7 @@ public abstract class StompBaseServer implements Server<String> {
     private final Supplier<StompMessagingProtocol<String>> protocolFactory;
     private final Supplier<MessageEncoderDecoder<String>> encdecFactory;
     private ServerSocket sock;
-    private UniqueIDGenerator conIdGen; //Object that handles generating unique ids from the free pool.
+    private AtomicInteger conIdGen; //Object that handles generating unique ids from the free pool.
     private Connections<String> connections; //Connections object to handle connection management.
 
     public StompBaseServer(
@@ -32,7 +29,7 @@ public abstract class StompBaseServer implements Server<String> {
         this.protocolFactory = protocolFactory;
         this.encdecFactory = encdecFactory;
 		this.sock = null;
-        this.conIdGen = new UniqueIDGenerator();
+        this.conIdGen = new AtomicInteger(0);
         this.connections = new ConnectionsManager<>();
     }
 
@@ -53,7 +50,7 @@ public abstract class StompBaseServer implements Server<String> {
                         encdecFactory.get(),
                         protocolFactory.get(),
                         connections,
-                        conIdGen.getNextId());
+                        conIdGen.incrementAndGet());
 
                         
                 

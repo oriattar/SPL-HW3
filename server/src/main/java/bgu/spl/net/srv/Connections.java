@@ -18,7 +18,7 @@ public interface Connections<T> {
 
     void disconnect(int connectionId);
 
-    void login(String userName,String password);
+    void login(String userName,String password,int connectionId);
 
     void logout(String userName);
 

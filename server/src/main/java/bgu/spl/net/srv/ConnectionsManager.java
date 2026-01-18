@@ -1,6 +1,8 @@
 package bgu.spl.net.srv;
 
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import bgu.spl.net.srv.authen.AuthenticationManager;
 public class ConnectionsManager<T> implements Connections<T> {
 
@@ -13,7 +15,7 @@ public class ConnectionsManager<T> implements Connections<T> {
     private ConcurrentHashMap<Integer,ConnectionHandler<T>> connecetions;
     private SubscriptionManager subManager;
     private AuthenticationManager authManager;
-    private UniqueIDGenerator idGen;
+    private AtomicInteger idGen;
    
     
     /*
@@ -23,7 +25,7 @@ public class ConnectionsManager<T> implements Connections<T> {
         this.connecetions = new ConcurrentHashMap<>();
         this.subManager = new SubscriptionManager();
         authManager = new AuthenticationManager();
-        this.idGen = new UniqueIDGenerator();
+        this.idGen = new AtomicInteger(0);
     }
 
     /*
@@ -72,9 +74,10 @@ public class ConnectionsManager<T> implements Connections<T> {
     {   
         System.out.println("Sending message from to channel: " + channel +" Msg: " + msg.toString());
         
+        String id = ""+idGen.incrementAndGet();
         for(SubscriptionManager.Subscription sub:this.subManager.getSubscriptionsByChannel(channel))
         {
-            String message = "MESSAGE\nsubscription:"+sub.getId()+"\nmessage-id:"+idGen.getNextId()+"\ndestination:"+channel+"\n\n"+msg.toString()+"\0";
+            String message = "MESSAGE\nsubscription:"+sub.getId()+"\nmessage-id:"+id+"\ndestination:"+channel+"\n\n"+msg.toString()+"\0";
             this.send(sub.getConId(),(T)message);
         }
     }
@@ -98,16 +101,16 @@ public class ConnectionsManager<T> implements Connections<T> {
     /*
     Method that handles user login and registration.
     */
-    public void login(String userName,String password)
+    public void login(String userName,String password,int conId)
     {
         if(!this.authManager.isRegistered(userName))
         {
-            this.authManager.register(userName, password);
+            this.authManager.register(userName, password,conId);
             System.out.println("Registered new user: " + userName);
         }
         else
         {
-            authManager.login(userName, password);
+            authManager.login(userName, password,conId);
             System.out.println("User connected with name: " + userName);
         }
 

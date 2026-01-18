@@ -5,9 +5,6 @@ import java.util.function.Supplier;
 import bgu.spl.net.srv.Server;
 import bgu.spl.net.api.MessageEncoderDecoder;
 import bgu.spl.net.api.StompMessagingProtocol;
-import bgu.spl.net.impl.echo.EchoProtocol;
-import bgu.spl.net.impl.echo.LineMessageEncoderDecoder;
-import bgu.spl.net.impl.rci.ObjectEncoderDecoder;
 import bgu.spl.net.srv.StompSrv.StompMsgEncDec;
 import bgu.spl.net.srv.StompSrv.StompMsgProtocol;
 
@@ -20,7 +17,14 @@ public class StompServer {
 
         Supplier<MessageEncoderDecoder<String>> encdecSupplier =
         () -> new StompMsgEncDec();
-        Server.StompThreadPerClient(7777, protocolSupplier, encdecSupplier
-        ).serve();
+
+        int port = Integer.parseInt(args[0]);
+        if(args[1] == "tpc")
+            Server.StompThreadPerClient(port, protocolSupplier, encdecSupplier).serve();
+        else
+        {
+            Server.StompReactor(10, port, protocolSupplier, encdecSupplier).serve();
+        }
     }
+        
 }

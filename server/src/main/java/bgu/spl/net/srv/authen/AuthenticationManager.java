@@ -1,5 +1,7 @@
 package bgu.spl.net.srv.authen;
+import bgu.spl.net.impl.data.*;
 import java.util.concurrent.ConcurrentHashMap;
+
 public class AuthenticationManager {
 
     private ConcurrentHashMap<String, User> logins; 
@@ -14,14 +16,14 @@ public class AuthenticationManager {
         return logins.containsKey(user);
     }
 
-    public synchronized void register(String user,String pass)
+    public synchronized void register(String user,String pass,int connectionId)
     {
         if(isRegistered(user))
             throw new IllegalStateException("Client is already registered.");
 
-        logins.put(user,new User(user, pass));
+        logins.put(user,new User(connectionId,user, pass));
         
-        logins.get(user).login(pass);
+        logins.get(user).login();
 
     }
 
@@ -33,12 +35,20 @@ public class AuthenticationManager {
         return logins.get(user).isLoggedIn();
     }
 
-    public synchronized void login(String user,String pass)
+    public synchronized void login(String user,String pass,int connectionId)
     {
         if(!isRegistered(user))
             throw new IllegalStateException("user is not registered.");
 
-        logins.get(user).login(pass);
+        User u = logins.get(user);
+        if(u.isLoggedIn())
+            throw new IllegalStateException("User is already logged in.");
+        if(!u.cmpPassword(pass))
+            throw new IllegalStateException("Wrong password.");
+
+        u.login();
+        u.setConnectionId(connectionId);
+        
     }
 
     public synchronized void logout(String user)
@@ -51,4 +61,10 @@ public class AuthenticationManager {
 
         logins.get(user).logout();
     }
+
+    public User getUser(String userName)
+    {
+        return logins.get(userName);
+    }   
+
 }

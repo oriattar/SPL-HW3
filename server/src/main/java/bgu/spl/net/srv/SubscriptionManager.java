@@ -139,6 +139,7 @@ public class SubscriptionManager
     {
         System.out.println("Removing subscription id: " + s.getId() + " from channel: " + s.getChannel() + " for user id: " + s.getConId());
         this.subscriptions.get(s.getChannel()).remove(s); //removes it from the list (by channel)
+        this.subDict.get(s.getConId()).remove(s); // removes it from the user list (by connectionId)
         this.removeTopicIfNeeded(s.getChannel());
 
     }

@@ -16,6 +16,10 @@ public class User {
 		return isLoggedIn;
 	}
 
+	public boolean cmpPassword(String pass) {
+		return this.password.equals(pass);
+	}
+	
 	public void login() {
 		isLoggedIn = true;
 	}
