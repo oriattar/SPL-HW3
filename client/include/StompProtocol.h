@@ -31,7 +31,7 @@ public:
     void handleLogout(int receiptId);
     void handleReport(string& filePath);
     void handleSummary(string& game,string& user,string& filePath);
-    void printMapToFile(const std::map<string,string>& toPr,std::ofstream& fileStream);
+
    
     bool shouldTerminate();
     void setShouldTerminate(bool status);

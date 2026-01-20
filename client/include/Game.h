@@ -18,6 +18,7 @@ class Game
         std::map<string,std::vector<Event>> updateByUserBefore;
         std::map<string,std::vector<Event>> updateByUserAfter;
         std::map<string,bool> halfTimeFalgs;
+        std::map<string,bool> isDone;
 
     public:
         Game() : name("") {};
@@ -27,7 +28,8 @@ class Game
         std::vector<Event> getUpdatesBefore(string& user){return updateByUserBefore[user];}
         std::vector<Event> getUpdatesAfter(string& user){return updateByUserAfter[user];}
 
-        void markPastHalftime(string & user){halfTimeFalgs[user] = true;}
+        bool getIsDone(string &user){return isDone[user];}
+        bool getIsBeforeHalftime(string &user){return halfTimeFalgs[user];}
        
         /*
         A method that enables adding event to a certain user eventlist in the game
@@ -35,6 +37,17 @@ class Game
         */
         void addUpdate(string& user,Event& e)
         {
+            auto tmp = e.get_game_updates();
+            auto it = tmp.find("active");
+            if (it != tmp.end() && it->second == "false") { // marks that the user sent end game frame
+                isDone[user] = true;
+            }
+
+            it = tmp.find("before halftime");
+		    if (it != tmp.end() && it->second == "false"){ // marks that the user sent past halftime frame
+                halfTimeFalgs[user] = true;
+            }
+
             if(!halfTimeFalgs[user])
             {
                 auto& v = updateByUserBefore[user];

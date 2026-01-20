@@ -375,9 +375,6 @@ void StompProtocol::handleReport(string& filePath)
         	throw std::runtime_error("A frame could not be sent to the server - shuting down");
 
 		std::map<string, string> tmp = curr.get_game_updates();
-		auto it = tmp.find("before halftime");
-		if (it != tmp.end() && it->second == "false")
-			this->Games[game].markPastHalftime(_username);
 		addUpdate(game,_username,curr); // stores data in protocol
 		
 	}
@@ -399,42 +396,65 @@ void StompProtocol::handleSummary(string& game,string& user,string& filePath)
 	fileStream << "Game stats:\n";
 	fileStream << "General stats:\n";
 
-	for(Event e:beforeHalf) // all events before halftime
-		printMapToFile(e.get_game_updates(),fileStream);
-	for(Event e:afterHalf)
-		printMapToFile(e.get_game_updates(),fileStream);
+	string isActive = (!this->Games[game].getIsDone(user)) ? "true" : "false";
+	string isBeforeHalf = (!this->Games[game].getIsBeforeHalftime(user)) ? "true" : "false";
 	
-	fileStream << "\n" +teams[0] + " stats:\n";
-	for(Event e:beforeHalf) 
-		printMapToFile(e.get_team_a_updates(),fileStream);
-	for(Event e:afterHalf)
-		printMapToFile(e.get_team_a_updates(),fileStream);
-	
-	fileStream <<"\n" + teams[1] + " stats:\n";
+	fileStream << "active: "+ isActive +"\n";
+	fileStream << "before halftime: "+ isBeforeHalf +"\n";
+		
+	fileStream << teams[0] + " stats:\n";
+	string pos;
+	string goals;
+
 	for(Event e:beforeHalf)
-		printMapToFile(e.get_team_b_updates(),fileStream);
+	{
+		std::map<string,string> tmp =e.get_team_a_updates();
+		if(tmp.find("goals")!= tmp.end())
+			goals = tmp["goals"];
+		if(tmp.find("possession")!= tmp.end())
+			pos = tmp["possession"];
+	}
 	for(Event e:afterHalf)
-		printMapToFile(e.get_team_b_updates(),fileStream);
+	{
+		std::map<string,string> tmp =e.get_team_a_updates();
+		if(tmp.find("goals")!= tmp.end())
+			goals = tmp["goals"];
+		if(tmp.find("possession")!= tmp.end())
+			pos = tmp["possession"];
+	}
+	fileStream << "goals: " + goals +"\n";
+	fileStream << "possession: " + pos +"\n";
+	
+	pos.clear();
+	goals.clear();
+	fileStream <<teams[1] + " stats:\n";
+	for(Event e:beforeHalf)
+	{
+		std::map<string,string> tmp =e.get_team_b_updates();
+		if(tmp.find("goals")!= tmp.end())
+			goals = tmp["goals"];
+		if(tmp.find("possession")!= tmp.end())
+			pos = tmp["possession"];
+	}
+	for(Event e:afterHalf)
+	{
+		std::map<string,string> tmp =e.get_team_b_updates();
+		if(tmp.find("goals")!= tmp.end())
+			goals = tmp["goals"];
+		if(tmp.find("possession")!= tmp.end())
+			pos = tmp["possession"];
+	}
+	fileStream << "goals: " + goals +"\n";
+	fileStream << "possession: " + pos +"\n";
 
 	fileStream <<"Game event reports:\n";
 	for(Event e:beforeHalf)
-		fileStream <<std::to_string(e.get_time()) + " - " + e.get_name() +"\n" + e.get_discription() +"\n\n";
+		fileStream <<std::to_string(e.get_time()) + " - " + e.get_name() +"\n\n" + e.get_discription() +"\n\n\n";
 	for(Event e:afterHalf)
-		fileStream <<std::to_string(e.get_time()) + " - " + e.get_name() +"\n" + e.get_discription() +"\n\n";
+		fileStream <<std::to_string(e.get_time()) + " - " + e.get_name() +"\n\n" + e.get_discription() +"\n\n\n";
 
 		//fileStream closes
 }
-
-/*
-Helper method that prints a map to file. given std::ofstream as a parameter.
-*/
-void StompProtocol::printMapToFile(const std::map<string,string>& toPr,std::ofstream& fileStream)
-{
-	for (const auto& [key, value] : toPr) {
-        fileStream << key +": " + value +"\n";
-	}
-}
-
 /*
 A method that construct the body for the sent frames according to the manual.
 */
@@ -451,7 +471,7 @@ string StompProtocol::ConstructEventFrame(Event& e)
 	+ "time: " + std::to_string(e.get_time()) +'\n'
 	+ "general game updates:\n";
 
-	for (auto [key, value] : gameUpdates) 
+	for (auto [key, value] : gameUpdates)
 		res+= "    " +key +": " + value +'\n';
 
 	res +="team a updates:\n";
@@ -518,7 +538,7 @@ void StompProtocol::parseResponse(std::map<int,string>& receipts)
 			cout << "Exited channel " + action[TOPIC] << endl;
 		else // logout receipt
 		{
-			cout << "Disconnected from the server\npress anything to close." << endl;
+			cout << "Disconnected from the server" << endl;
 			throw std::runtime_error("Connection was terimnated");
 		}
 	}
@@ -531,10 +551,6 @@ void StompProtocol::parseResponse(std::map<int,string>& receipts)
 			string game = split(lines[DEST_LINE],':')[1].substr(1);
 			Event e = parseToEvent(lines); //converting a frame to event
 			std::map<string, string> tmp = e.get_game_updates(); 
-
-			auto it = tmp.find("before halftime"); // checks for the after halftime flag
-			if (it != tmp.end() && it->second == "false")
-				this->Games[game].markPastHalftime(username); //marks that from here on, the user sends frame to the game AFTER halftime.
 			addUpdate(game,username,e);// adds game to map
 		}
 	}
