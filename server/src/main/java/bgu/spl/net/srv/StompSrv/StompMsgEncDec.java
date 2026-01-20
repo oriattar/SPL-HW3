@@ -1,5 +1,6 @@
 package bgu.spl.net.srv.StompSrv;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 import bgu.spl.net.api.MessageEncoderDecoder;
 
@@ -9,19 +10,21 @@ public class StompMsgEncDec implements MessageEncoderDecoder<String> {
 
     public String decodeNextByte(byte nextByte)
     {
-        byteBuffer.put(nextByte);
-        if(nextByte == 0 || !this.byteBuffer.hasRemaining())
-        {
-            String result = new String(byteBuffer.array());
-            byteBuffer.clear();
-            return result;
+        if(nextByte == 0)
+        { 
+            byteBuffer.flip();                      
+            byte[] bytes = new byte[byteBuffer.remaining()];
+            byteBuffer.get(bytes);
+            byteBuffer.clear();                     
+            return new String(bytes, StandardCharsets.UTF_8);
         }
+        byteBuffer.put(nextByte);
         return null;
     }
 
     public byte[] encode(String message)
     {
-        return message.getBytes();
+        return message.getBytes(StandardCharsets.UTF_8);
     }
     
 }

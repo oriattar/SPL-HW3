@@ -19,8 +19,10 @@ public class StompServer {
         () -> new StompMsgEncDec();
 
         int port = Integer.parseInt(args[0]);
-        if(args[1] == "tpc")
+        if(args[1].equals("tpc"))
+        {
             Server.StompThreadPerClient(port, protocolSupplier, encdecSupplier).serve();
+        }
         else
         {
             Server.StompReactor(10, port, protocolSupplier, encdecSupplier).serve();

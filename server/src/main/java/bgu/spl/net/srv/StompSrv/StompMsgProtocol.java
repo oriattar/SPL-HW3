@@ -83,7 +83,7 @@ public class StompMsgProtocol implements StompMessagingProtocol<String> {
                     handleDisconnect();
                     break;
                 default://ERROR
-                    throw new RuntimeException("Unknown command");
+                    throw new RuntimeException("Unknown command " + command);
             }
             
         }
@@ -160,9 +160,7 @@ public class StompMsgProtocol implements StompMessagingProtocol<String> {
         this.shouldTerminate = true;
         
         cManager.disconnect(conId);
-        if(cManager.isUserLoggedIn(userName))
-            cManager.logout(userName);
-        userName = "";
+        forceLogout();
     }
 	/**
      * @return true if the connection should be terminated
@@ -186,5 +184,12 @@ public class StompMsgProtocol implements StompMessagingProtocol<String> {
     {
         String res = "RECEIPT\nreceipt-id:"+reciptId+"\n\n\0";
         cManager.send(conId, res);
+    }
+
+    public void forceLogout()
+    {
+        if(cManager.isUserLoggedIn(userName))
+            cManager.logout(userName);
+        userName = "";
     }
 }

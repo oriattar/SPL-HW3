@@ -78,6 +78,15 @@ public class SubscriptionManager
     */
     public void subscribe(int subId,int conId,String channel){
 
+        List<Subscription> list = this.subDict.get(conId);
+        if(list!= null){
+            for(Subscription s:list)
+            {
+                if(s.getChannel().equals(channel))
+                    throw new RuntimeException("Connection already subscribed to the topic");
+            }
+        }
+
         Subscription toAdd = new Subscription(subId,conId,channel);
         addTopicIfNeeded(channel); // adds topic
 

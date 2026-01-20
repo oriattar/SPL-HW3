@@ -51,6 +51,7 @@ public abstract class StompBaseServer implements Server<String> {
                         protocolFactory.get(),
                         connections,
                         conIdGen.incrementAndGet());
+                        
 
                         
                 

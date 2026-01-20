@@ -40,6 +40,7 @@ public class StompBlockingConnectionHandler implements Runnable, ConnectionHandl
 
                 while (!protocol.shouldTerminate() && connected && (read = in.read()) >= 0) {
                     String nextMessage = encdec.decodeNextByte((byte) read);
+                    
                     if (nextMessage != null) {
                         protocol.process(nextMessage);
                     }
@@ -54,6 +55,7 @@ public class StompBlockingConnectionHandler implements Runnable, ConnectionHandl
         @Override
         public void close() throws IOException {
             connected = false;
+            protocol.forceLogout();
             sock.close();
         }
 
