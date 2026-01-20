@@ -16,5 +16,5 @@ public interface StompMessagingProtocol<T>  {
      */
     boolean shouldTerminate();
 
-    void forceLogout();
+    void handleDisconnect();
 }

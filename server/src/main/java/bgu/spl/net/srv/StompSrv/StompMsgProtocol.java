@@ -155,12 +155,14 @@ public class StompMsgProtocol implements StompMessagingProtocol<String> {
         handleDisconnect();
     }
 
-    private void handleDisconnect()
+    public void handleDisconnect()
     {
         this.shouldTerminate = true;
         
         cManager.disconnect(conId);
-        forceLogout();
+         if(cManager.isUserLoggedIn(userName))
+            cManager.logout(userName);
+        userName = "";
     }
 	/**
      * @return true if the connection should be terminated
@@ -186,10 +188,4 @@ public class StompMsgProtocol implements StompMessagingProtocol<String> {
         cManager.send(conId, res);
     }
 
-    public void forceLogout()
-    {
-        if(cManager.isUserLoggedIn(userName))
-            cManager.logout(userName);
-        userName = "";
-    }
 }

@@ -16,7 +16,7 @@ class StompProtocol
 {
 private:
     ConnectionHandler * ch;
-    string username;
+    string _username;
     std::atomic<bool> shouldTerminateField;
     std::map<string,Game> Games;
 
@@ -30,7 +30,9 @@ public:
     void handleExit(string& game,int subId,int receiptId);
     void handleLogout(int receiptId);
     void handleReport(string& filePath);
-
+    void handleSummary(string& game,string& user,string& filePath);
+    void printMapToFile(const std::map<string,string>& toPr,std::ofstream& fileStream);
+   
     bool shouldTerminate();
     void setShouldTerminate(bool status);
     void addUpdate(string& game,string& user,Event& e);

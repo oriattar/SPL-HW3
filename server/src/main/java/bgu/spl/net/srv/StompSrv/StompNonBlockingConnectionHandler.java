@@ -72,7 +72,7 @@ public class StompNonBlockingConnectionHandler implements ConnectionHandler<Stri
     public void close() {
         try {
             chan.close();
-            protocol.forceLogout();
+            protocol.handleDisconnect();
         } catch (IOException ex) {
             ex.printStackTrace();
         }

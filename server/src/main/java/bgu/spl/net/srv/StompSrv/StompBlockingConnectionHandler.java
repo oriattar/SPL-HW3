@@ -45,9 +45,14 @@ public class StompBlockingConnectionHandler implements Runnable, ConnectionHandl
                         protocol.process(nextMessage);
                     }
                 }
+                close();
 
             } catch (IOException ex) {
                 ex.printStackTrace();
+                try
+                {
+                    close();
+                }catch (IOException e){e.printStackTrace();}
             }
 
         }
@@ -55,7 +60,7 @@ public class StompBlockingConnectionHandler implements Runnable, ConnectionHandl
         @Override
         public void close() throws IOException {
             connected = false;
-            protocol.forceLogout();
+            protocol.handleDisconnect();
             sock.close();
         }
 

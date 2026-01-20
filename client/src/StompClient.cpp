@@ -11,6 +11,7 @@
 #include <map>
 #include <vector>
 #include <stdexcept>
+#include <fstream>
 
 #define COMMAND 0
 #define ACTION 0
@@ -19,6 +20,7 @@
 #define FILE_PATH 1
 #define USERNAME 2
 #define PASSWORD 3
+#define SUMMARY_FILE_INDEX 3
 
 #define BODY_START 6
 #define USER_LINE 5
@@ -35,8 +37,9 @@ void addReceipt(int rec,string action,std::map<int,string>& receipts);
 string removeReceipt(int rec,std::map<int,string>& receipts);
 void threadLoop(StompProtocol& protocol,std::map<int,string>& receipts);
 std::vector<string> parseCommand(string& input,int len);
-std::vector<string> split(string input);
+std::vector<string> split(string input,char splitBy);
 std::vector<string> getLines(string& str);
+
 
 int main(int argc, char *argv[]) {
 	
@@ -52,10 +55,11 @@ int main(int argc, char *argv[]) {
 
 	StompProtocol protocol;
 	
-	while(!isConnected)
+	while(!isConnected) // first of we must connect to server before we use any commands
 	{
 		try
 		{
+			cout << "Please login to host:" << endl;
         	std::cin.getline(buf, bufsize);
 			std::string line(buf);
 			int len=line.length();
@@ -66,11 +70,11 @@ int main(int argc, char *argv[]) {
 				std::cout << "You first must use login before using any other commands" << std::endl;
 			else
 			{
-				std::vector<string> hostInfo = split(command[HOST_ADDRESS]);
-				con = connect(hostInfo[0],hostInfo[1]);
+				std::vector<string> hostInfo = split(command[HOST_ADDRESS],':');
+				con = connect(hostInfo[0],hostInfo[1]); // connecting
 				protocol.start(con,command[USERNAME]);
 
-				protocol.handleLogin(command[HOST_ADDRESS],command[USERNAME],command[PASSWORD]);
+				protocol.handleLogin(command[HOST_ADDRESS],command[USERNAME],command[PASSWORD]); // sends login
 				isConnected = true;
 			}
 			
@@ -83,9 +87,9 @@ int main(int argc, char *argv[]) {
 	}
 	
 	
-	std::thread t(threadLoop,std::ref(protocol),std::ref(reciepts));
+	std::thread t(threadLoop,std::ref(protocol),std::ref(reciepts)); //start the thread that listens to server
 	
-	while(!protocol.shouldTerminate())
+	while(!protocol.shouldTerminate()) // runs until should terminate
 	{
 		try
 		{
@@ -95,29 +99,28 @@ int main(int argc, char *argv[]) {
 			if(protocol.shouldTerminate())
 				throw std::runtime_error("Connection was closed by the server.");
 
-			std::vector<string> command = parseCommand(line,len);
+			std::vector<string> command = parseCommand(line,len); // parse command
 			string comm= command[COMMAND];
-			if(comm=="login")
+			if(comm=="login") //login command
 				protocol.handleLogin(command[HOST_ADDRESS],command[USERNAME],command[PASSWORD]);
 
 			else if(comm =="join")
 			{
-				if(subscriptions.find(command[TOPIC])!= subscriptions.end())
+				if(subscriptions.find(command[TOPIC])!= subscriptions.end()) //locates in subscription map first, send frame if not subscribed
 					cout<< "User already subscribed to the topic." << endl;
 				else
 				{
-					subscriptions[command[TOPIC]] = subIdGen;
-					addReceipt(receiptIdGen,"SUB:" + command[TOPIC],reciepts);
+					subscriptions[command[TOPIC]] = subIdGen; // saves subscription in map
+					addReceipt(receiptIdGen,"SUB:" + command[TOPIC],reciepts); //put a receipt in the receipt map in the format id->action:topic
 					protocol.handleJoin(command[TOPIC],subIdGen,receiptIdGen);
 					subIdGen++;
 					receiptIdGen++;
 				}
 			}
-			else if(comm == "exit")
+			else if(comm == "exit") //exit command
 			{
 				if(subscriptions.find(command[TOPIC])== subscriptions.end())
 					cout<< "You are subscribed to that topic." << endl;
-				
 				else
 				{
 					addReceipt(receiptIdGen,"UNSUB:" + command[TOPIC],reciepts);
@@ -129,6 +132,7 @@ int main(int argc, char *argv[]) {
 			else if(comm == "report")
 			{
 				protocol.handleReport(command[FILE_PATH]);
+				cout << "Report was sent." << endl;
 			}
 			else if(comm == "logout")
 			{
@@ -136,9 +140,16 @@ int main(int argc, char *argv[]) {
 				protocol.handleLogout(receiptIdGen);
 				receiptIdGen++;
 				break;
-
 			}
-			
+			else if(comm == "summary")
+			{
+				protocol.handleSummary(command[TOPIC],command[USERNAME],command[SUMMARY_FILE_INDEX]);
+				cout << "A summary was created at:" + command[SUMMARY_FILE_INDEX] << endl;
+			}
+			else
+			{
+				cout << "Unknown command: " + comm +" try again." << endl;
+			}
 		}
 		catch(const std::exception& e)
 		{
@@ -150,7 +161,9 @@ int main(int argc, char *argv[]) {
 	t.join();
 	return 0;
 }
-
+/*
+Method that responsible connecting connection handler and returns a pointer to it. - no defult constructor that it was handeled this way.
+*/
 ConnectionHandler * connect(string& host,string& port) {
 
 	cout << "Connecting to " + host + " on port: " + port << endl;
@@ -183,7 +196,10 @@ string removeReceipt(int rec,std::map<int,string>& receipts)
 
 	return res;
 }
-
+/*
+The function that the thread thats listening to server runs.
+active until connection should terminate
+*/
 void threadLoop(StompProtocol& protocol,std::map<int,string>& receipts)
 {
 	while(!protocol.shouldTerminate())
@@ -192,14 +208,17 @@ void threadLoop(StompProtocol& protocol,std::map<int,string>& receipts)
 		{
 			protocol.parseResponse(receipts);
 		}
-		catch(const std::exception& e)
+		catch(const std::exception& e) // if there was an error terminate the thread
 		{
+			cout << e.what() << endl;
 			protocol.setShouldTerminate(true);
 		}
 
 	}
 }
-
+/*
+Helper method that splits inial command by spaces, returns a vector of the command parameters.
+*/
 std::vector<string> parseCommand(string& input,int len)
 {
 	std::vector<string> res;
@@ -222,15 +241,15 @@ std::vector<string> parseCommand(string& input,int len)
 }
 
 /*
-Method that splits a string by ':' , assumes it exist in the string.
+Method that splits a string by input char , assumes it exist in the string.
 */
-std::vector<string> split(string input)
+std::vector<string> split(string input,char splitBy)
 {
 	std::vector<std::string> res;
     std::string cur = "";
 
     for (int i = 0; i < input.size(); i++) {
-        if (input[i] == ':') {
+        if (input[i] == splitBy) {
             res.push_back(cur);
             cur = "";
         } else {
@@ -241,13 +260,16 @@ std::vector<string> split(string input)
     return res;
 }
 
+/*
+Helper method that gets a string and returns a vector with it lines.
+*/
 std::vector<string> getLines(string& str)
 {
 	string tmp ="";
 	std::vector<string> lines;
 	for(int i=0;i<str.size();i++)
 	{
-		if(str[i] = '\n')
+		if(str[i] == '\n')
 		{
 			lines.push_back(tmp);
 			tmp.clear();
@@ -255,6 +277,7 @@ std::vector<string> getLines(string& str)
 		else
 			tmp+=str[i];
 	}
+	lines.push_back(tmp); // adding the last line
 	return lines;
 }
 
@@ -265,20 +288,27 @@ Stomp protocol implemintations
 
 =================================
 */
-StompProtocol::StompProtocol():ch(nullptr),username(""),shouldTerminateField(false)
+StompProtocol::StompProtocol():ch(nullptr),_username(""),shouldTerminateField(false)
 {}
+
 StompProtocol::~StompProtocol()
 {
 	this->ch->close(); //terminating
-	delete this->ch;
+	delete this->ch; // deletes allocated ch
 }
 
+/*
+Method that iniates protocol.
+*/
 void StompProtocol::start(ConnectionHandler * ch, string username)
 {
 	this->ch = ch;
-	this->username = username;
+	this->_username = username;
 }
 
+/*
+Method that handles login command.construct the frames from given parameters.(CONNECT)
+*/
 void StompProtocol::handleLogin(string& hostInfo,string& username,string &password)
 {
 	string host = "";
@@ -287,7 +317,7 @@ void StompProtocol::handleLogin(string& hostInfo,string& username,string &passwo
     while (hostInfo[i] != ':') {
         host += hostInfo[i];
         i++;
-    }
+    } //finding host id from a string formmated 0.0.0.0:port
 	string frame = "CONNECT\naccept-version:1.2\nhost:"+host +"\nlogin:" + username +"\npasscode:" + password + "\n\n";
 	if (this->shouldTerminate() || !this->ch->sendFrameAscii(frame, '\0')) 
         throw std::runtime_error("A frame could not be sent to the server - shuting down");
@@ -295,6 +325,9 @@ void StompProtocol::handleLogin(string& hostInfo,string& username,string &passwo
         
 }
 
+/*
+Method that handles join command.construct the frames from given parameters.(SUBSCRIBE)
+*/
 void StompProtocol::handleJoin(string& game,int subId,int receiptId)
 {
 	string frame = "SUBSCRIBE\nid:"+ std::to_string(subId)+ "\ndestination:/" + game + "\nreceipt:"+std::to_string(receiptId)+"\n\n";
@@ -303,6 +336,9 @@ void StompProtocol::handleJoin(string& game,int subId,int receiptId)
 	this->Games[game] = Game(game);
 }
 
+/*
+Method that handles exit command.construct the frames from given parameters.(UNSUBSCRIBE)
+*/
 void StompProtocol::handleExit(string& game,int subId,int receiptId)
 {
 	string frame = "UNSUBSCRIBE\nid:" + std::to_string(subId) + "\nreceipt:" + std::to_string(receiptId) +"\n\n";
@@ -312,6 +348,9 @@ void StompProtocol::handleExit(string& game,int subId,int receiptId)
 	this->Games.erase(game);
 }
 
+/*
+Method that handles logout command.construct the frames from given parameters.
+*/
 void StompProtocol::handleLogout(int receiptId)
 {
 	string frame = "DISCONNECT\nreceipt:" + std::to_string(receiptId) +"\n\n";
@@ -319,18 +358,80 @@ void StompProtocol::handleLogout(int receiptId)
         throw std::runtime_error("A frame could not be sent to the server - shuting down");
 }
 
+/*
+Method that handles the report command, construct the frame from parsed events and sending it, also storing the data.
+*/
 void StompProtocol::handleReport(string& filePath)
 {
-	names_and_events data = parseEventsFile(filePath);
+	names_and_events data = parseEventsFile(filePath); // reading the file
 	std::vector<Event> events = data.events;
 	string game =  data.team_a_name + "_" +data.team_b_name;
 	for(int i=0;i<events.size();i++)
 	{
 		Event curr = events[i];
-		string body = ConstructEventFrame(curr);
+		string body = ConstructEventFrame(curr); // consruct body for the frame
 		string frame = "SEND\ndestination:/" + game +"\n\n" + body;
-		if (this->shouldTerminate() ||!this->ch->sendFrameAscii(frame, '\0'))  
+		if (this->shouldTerminate() ||!this->ch->sendFrameAscii(frame, '\0'))  //sends frame
         	throw std::runtime_error("A frame could not be sent to the server - shuting down");
+
+		std::map<string, string> tmp = curr.get_game_updates();
+		auto it = tmp.find("before halftime");
+		if (it != tmp.end() && it->second == "false")
+			this->Games[game].markPastHalftime(_username);
+		addUpdate(game,_username,curr); // stores data in protocol
+		
+	}
+}
+
+/*
+Method that responsible pulling the data from the protocol and printing it to the target file.
+*/
+void StompProtocol::handleSummary(string& game,string& user,string& filePath)
+{
+	std::ofstream fileStream(filePath); // opening the file
+	if(!fileStream)
+		throw std::runtime_error("Cannot open traget file, closing...");
+
+	std::vector<Event> beforeHalf = this->Games[game].getUpdatesBefore(user);
+	std::vector<Event> afterHalf = this->Games[game].getUpdatesAfter(user);
+	std::vector<string> teams = split(game,'_');
+	fileStream << teams[0] +" vs " + teams[1] + "\n";
+	fileStream << "Game stats:\n";
+	fileStream << "General stats:\n";
+
+	for(Event e:beforeHalf) // all events before halftime
+		printMapToFile(e.get_game_updates(),fileStream);
+	for(Event e:afterHalf)
+		printMapToFile(e.get_game_updates(),fileStream);
+	
+	fileStream << "\n" +teams[0] + " stats:\n";
+	for(Event e:beforeHalf) 
+		printMapToFile(e.get_team_a_updates(),fileStream);
+	for(Event e:afterHalf)
+		printMapToFile(e.get_team_a_updates(),fileStream);
+	
+	fileStream <<"\n" + teams[1] + " stats:\n";
+	for(Event e:beforeHalf)
+		printMapToFile(e.get_team_b_updates(),fileStream);
+	for(Event e:afterHalf)
+		printMapToFile(e.get_team_b_updates(),fileStream);
+
+	fileStream <<"Game event reports:\n";
+	for(Event e:beforeHalf)
+		fileStream <<std::to_string(e.get_time()) + " - " + e.get_name() +"\n" + e.get_discription() +"\n\n";
+	for(Event e:afterHalf)
+		fileStream <<std::to_string(e.get_time()) + " - " + e.get_name() +"\n" + e.get_discription() +"\n\n";
+
+		//fileStream closes
+}
+
+/*
+Helper method that prints a map to file. given std::ofstream as a parameter.
+*/
+void StompProtocol::printMapToFile(const std::map<string,string>& toPr,std::ofstream& fileStream)
+{
+	for (const auto& [key, value] : toPr) {
+        fileStream << key +": " + value +"\n";
 	}
 }
 
@@ -341,14 +442,15 @@ string StompProtocol::ConstructEventFrame(Event& e)
 {
 	std::map<string,string> gameUpdates = e.get_game_updates();
 	std::map<string,string> team_aUpdates = e.get_team_a_updates();
-	std::map<string,string> team_bUpdates = e.get_team_a_updates();
+	std::map<string,string> team_bUpdates = e.get_team_b_updates();
 
-	string res = "user: " + this->username +'\n'
+	string res = "user: " + this->_username +'\n'
 	+ "team a: " + e.get_team_a_name() +'\n'
 	+ "team b: " + e.get_team_b_name() +'\n'
 	+ "event name: " + e.get_name() +'\n'
 	+ "time: " + std::to_string(e.get_time()) +'\n'
 	+ "general game updates:\n";
+
 	for (auto [key, value] : gameUpdates) 
 		res+= "    " +key +": " + value +'\n';
 
@@ -364,64 +466,78 @@ string StompProtocol::ConstructEventFrame(Event& e)
 
 	return res;
 }
-
+/*
+Returns if the connection should terminate
+*/
 bool StompProtocol::shouldTerminate()
 {
 	return this->shouldTerminateField;
 }
-
+/*
+set the shouldTerminate flag to status
+*/
 void StompProtocol::setShouldTerminate(bool status)
 {
 	this->shouldTerminateField = status;
 }
+
+/*
+Method that responsible for reading frames from server and acting accordingly
+note: receipts are inserted to a map in the format : receiptId->ACTION:TOPIC
+*/
 void StompProtocol::parseResponse(std::map<int,string>& receipts)
 {
 	string mes;
-	if (!this->ch->getFrameAscii(mes,'\0')) {
+	if (!this->ch->getFrameAscii(mes,'\0')) { // reads a frane
         cout << "Disconnected. Exiting...\n" << endl;
     	throw std::runtime_error("Connection was terimnated");
     }
 	string frameType;
 			
 	size_t pos = mes.find('\n');
-	frameType = mes.substr(0, pos);
-	cout << "------------------" << endl;
-	cout << mes << endl;
-	if(frameType == "ERROR")
+	frameType = mes.substr(0, pos); //get the frame type sent from server
+	if(frameType == "ERROR") // resonse for error
 	{
 		cout << "Conncetion is terminated\npress anything to close." << endl;
 		throw std::runtime_error("Connection was terimnated");
 	}
-	else if(frameType == "CONNECTED")
+	else if(frameType == "CONNECTED") // reponse for connected
 	{
 		cout <<"Login successful" << endl;
 	}
-	else if(frameType == "RECEIPT")
+	else if(frameType == "RECEIPT") // reponse for a receipt frame - can be response for subscribe ubnsubscribe and logout.
 	{
 		int i = mes.find("receipt-id:") + 11;
 		int j = mes.find('\n', i);
 		int receiptNum = std::stoi(mes.substr(i, j - i));
-		std::vector<string> action = split(removeReceipt(receiptNum,receipts));
+		std::vector<string> action = split(removeReceipt(receiptNum,receipts),':'); // pulling out the reciet from the receipt map
 
-		if(action[ACTION] == "SUB")
+		if(action[ACTION] == "SUB") // if the action was subscribe
 			cout << "Joined channel " + action[TOPIC] << endl;
-		else if(action[ACTION] == "UNSUB")
+		else if(action[ACTION] == "UNSUB") //unsubscribe receits
 			cout << "Exited channel " + action[TOPIC] << endl;
-		else
+		else // logout receipt
 		{
 			cout << "Disconnected from the server\npress anything to close." << endl;
 			throw std::runtime_error("Connection was terimnated");
 		}
 	}
-	else if(frameType == "MESSAGE")
+	else if(frameType == "MESSAGE") // reponds to a message frame
 	{
 		std::vector<string> lines = getLines(mes);
-		string username=split(lines[USER_LINE])[1].substr(1);
-		string game = split(lines[DEST_LINE])[1].substr(1);
-		Event e = parseToEvent(lines);
-		addUpdate(game,username,e);
+		string username=split(lines[USER_LINE],':')[1].substr(1); // gets the sender
+		if(username!=this->_username) // we already store events from the client itself when we send them
+		{
+			string game = split(lines[DEST_LINE],':')[1].substr(1);
+			Event e = parseToEvent(lines); //converting a frame to event
+			std::map<string, string> tmp = e.get_game_updates(); 
+
+			auto it = tmp.find("before halftime"); // checks for the after halftime flag
+			if (it != tmp.end() && it->second == "false")
+				this->Games[game].markPastHalftime(username); //marks that from here on, the user sends frame to the game AFTER halftime.
+			addUpdate(game,username,e);// adds game to map
+		}
 	}
-	cout << "------------------" << endl;
 }
 
 /*
@@ -429,7 +545,7 @@ A method to add new update for a certain user for the game map.
 */
 void StompProtocol::addUpdate(string& game,string& user,Event& e)
 {
-	std::lock_guard<std::mutex> lock(updateMutex);
+	std::lock_guard<std::mutex> lock(updateMutex); // locks as the games table is a common resource.
 	this->Games[game].addUpdate(user,e);	
 }
 
@@ -443,15 +559,13 @@ Event StompProtocol::parseToEvent(std::vector<string> lines)
     std::map<std::string,std::string> gameUpdates, teamAUpdates, teamBUpdates;
 
 	int i = BODY_START;
-	
+	teamA = split(lines[i],':')[1].substr(1);
 	i++;
-	teamA = split(lines[i])[1].substr(1);
+	teamB = split(lines[i],':')[1].substr(1);
 	i++;
-	teamB = split(lines[i])[1].substr(1);
+	eventName = split(lines[i],':')[1].substr(1);
 	i++;
-	eventName = split(lines[i])[1].substr(1);
-	i++;
-	time = std::stoi(split(lines[i])[1].substr(1));
+	time = std::stoi(split(lines[i],':')[1].substr(1));
 	i++;
 
 	i++;//skipping the string general game updates
@@ -465,12 +579,10 @@ Event StompProtocol::parseToEvent(std::vector<string> lines)
 		}
 		for(int j =0;j<section.size();j++)
 		{
-			std::vector<string> line = split(section[i]);
+			std::vector<string> line = split(section[j],':');
 			gameUpdates[line[0]] = line[1].substr(1);
 		}
 	}
-	else
-		i++;
 
 	i++; // skipping team a updates
 	section.clear();
@@ -483,14 +595,12 @@ Event StompProtocol::parseToEvent(std::vector<string> lines)
 		}
 		for(int j =0;j<section.size();j++)
 		{
-			std::vector<string> line = split(section[j]);
+			std::vector<string> line = split(section[j],':');
 			teamAUpdates[line[0]] = line[1].substr(1);
 		}
 	}
-	else
-		i++;
 	
-	i++; // skipping team b updates
+	i++; // skipping team b update
 	section.clear();
 	if(lines[i][0]==' ')
 	{
@@ -501,14 +611,13 @@ Event StompProtocol::parseToEvent(std::vector<string> lines)
 		}
 		for(int j =0;j<section.size();j++)
 		{
-			std::vector<string> line = split(section[j]);
+			std::vector<string> line = split(section[j],':');
 			teamBUpdates[line[0]] = line[1].substr(1);
 		}
 	}
-	else
-		i++;
+	
 	i++;
-	while(i<lines.size())
+	while(i<lines.size())// constructing description
 	{
 		desc += lines[i];
 		i++;

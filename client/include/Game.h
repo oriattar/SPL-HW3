@@ -15,19 +15,37 @@ class Game
 {
     private:
         string name;
-        std::map<string,std::vector<Event>> updateByUser;
-        bool afterHalftime;
+        std::map<string,std::vector<Event>> updateByUserBefore;
+        std::map<string,std::vector<Event>> updateByUserAfter;
+        std::map<string,bool> halfTimeFalgs;
 
     public:
-        Game(string name):name(name),afterHalftime(false){};
+        Game() : name("") {};
+        Game(string name):name(name){};
 
         string getName(){return name;}
-        std::map<string,std::vector<Event>> getUpdates(){return updateByUser;}
-        bool isAfterHalftime(){return afterHalftime;}
+        std::vector<Event> getUpdatesBefore(string& user){return updateByUserBefore[user];}
+        std::vector<Event> getUpdatesAfter(string& user){return updateByUserAfter[user];}
 
-        void setAfterHalftime(bool status){afterHalftime = status;}
+        void markPastHalftime(string & user){halfTimeFalgs[user] = true;}
+       
+        /*
+        A method that enables adding event to a certain user eventlist in the game
+        sort after each insertion to maintain time order.
+        */
         void addUpdate(string& user,Event& e)
         {
-            //to impl
+            if(!halfTimeFalgs[user])
+            {
+                auto& v = updateByUserBefore[user];
+                v.push_back(e);
+                std::sort(v.begin(), v.end(),[](const Event& a, const Event& b){ return a.get_time() < b.get_time(); }); //sorts vector by time
+            }
+            else
+            {
+                auto& v = updateByUserAfter[user];
+                v.push_back(e);
+                std::sort(v.begin(), v.end(),[](const Event& a, const Event& b){ return a.get_time() < b.get_time(); }); //sorts vector by time
+            }
         }
 };
