@@ -370,7 +370,7 @@ void StompProtocol::handleReport(string& filePath)
 	{
 		Event curr = events[i];
 		string body = ConstructEventFrame(curr); // consruct body for the frame
-		string frame = "SEND\ndestination:/" + game +"\n\n" + body;
+		string frame = "SEND\ndestination:/" + game +"\nfile:"+filePath+"\n\n" + body;
 		if (this->shouldTerminate() ||!this->ch->sendFrameAscii(frame, '\0'))  //sends frame
         	throw std::runtime_error("A frame could not be sent to the server - shuting down");
 

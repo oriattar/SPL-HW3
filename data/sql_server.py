@@ -11,11 +11,14 @@ the methods below.
 import socket
 import sys
 import threading
+import sqlite3
 
 
 SERVER_NAME = "STOMP_PYTHON_SQL_SERVER"  # DO NOT CHANGE!
 DB_FILE = "stomp_server.db"              # DO NOT CHANGE!
 
+_conn = sqlite3.connect(DB_FILE,check_same_thread=False)
+_db_lock = threading.Lock()
 
 def recv_null_terminated(sock: socket.socket) -> str:
     data = b""
@@ -28,19 +31,70 @@ def recv_null_terminated(sock: socket.socket) -> str:
             msg, _ = data.split(b"\0", 1)
             return msg.decode("utf-8", errors="replace")
 
+def close():
+    with _db_lock:
+        _conn.commit() 
+        _conn.close()
 
 def init_database():
-    pass
+    with _db_lock:
+        _conn.executescript(""" CREATE TABLE IF NOT EXISTS users (
+            username TEXT PRIMARY KEY,
+            password TEXT NOT NULL,
+            registration_date TEXT NOT NULL);
+            
+            CREATE TABLE IF NOT EXISTS login_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            login_time TEXT NOT NULL,
+            logout_time TEXT,
+            FOREIGN KEY(username) REFERENCES users(username));
+                        
+            CREATE TABLE IF NOT EXISTS file_tracking (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            upload_time TEXT NOT NULL,
+            game_channel TEXT,
+            FOREIGN KEY(username) REFERENCES users(username));""")
+        _conn.commit()
 
 
 def execute_sql_command(sql_command: str) -> str:
-    return "done"
+    try: 
+        with _db_lock:
+            _conn.execute(sql_command)
+            _conn.commit()
+            return "SUCCESS"
+    except Exception as e:
+        print(f"ERROR:Couldnot execute command:{e}")
+        return f"ERROR:Couldnot execute command:{e}"
 
 
 def execute_sql_query(sql_query: str) -> str:
-    return "done"
+    try:
+        out = ""
+        with _db_lock:
+            cur = _conn.cursor()
+            cur.execute(sql_query)
+            out = cur.fetchall()
 
-
+        res = "SUCCESS"
+        for row in out:
+            res = res + "|" + str(row) +"|"
+        return res
+    except Exception as e:
+        print(f"ERROR:Couldnot execute query:{e}")
+        return f"ERROR:Couldnot execute query:{e}"
+    
+#Method that differ between sql command and sql queries, get the message from the client and directs it.
+def direct_message(msg : str) ->str:
+    temp = msg.strip().upper()
+    if(temp.startswith("SELECT")):
+        return execute_sql_query(msg)
+    else:
+        return execute_sql_command(msg)
+    
 def handle_client(client_socket: socket.socket, addr):
     print(f"[{SERVER_NAME}] Client connected from {addr}")
 
@@ -53,7 +107,8 @@ def handle_client(client_socket: socket.socket, addr):
             print(f"[{SERVER_NAME}] Received:")
             print(message)
 
-            client_socket.sendall(b"done\0")
+            output = direct_message(message)
+            client_socket.sendall((output + "\0").encode("utf-8"))
 
     except Exception as e:
         print(f"[{SERVER_NAME}] Error handling client {addr}: {e}")
@@ -89,6 +144,7 @@ def start_server(host="127.0.0.1", port=7778):
     finally:
         try:
             server_socket.close()
+            close()
         except Exception:
             pass
 
@@ -102,4 +158,5 @@ if __name__ == "__main__":
         except ValueError:
             print(f"Invalid port '{raw_port}', falling back to default {port}")
 
+    init_database()
     start_server(port=port)
