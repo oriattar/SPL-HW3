@@ -38,19 +38,22 @@ def close():
 
 def init_database():
     with _db_lock:
-        _conn.executescript(""" CREATE TABLE IF NOT EXISTS users (
+        _conn.executescript(""" DROP TABLE IF EXISTS users;
+            CREATE TABLE users (
             username TEXT PRIMARY KEY,
             password TEXT NOT NULL,
             registration_date TEXT NOT NULL);
             
-            CREATE TABLE IF NOT EXISTS login_history (
+            DROP TABLE IF EXISTS login_history;
+            CREATE TABLE login_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT NOT NULL,
             login_time TEXT NOT NULL,
             logout_time TEXT,
             FOREIGN KEY(username) REFERENCES users(username));
-                        
-            CREATE TABLE IF NOT EXISTS file_tracking (
+
+            DROP TABLE IF EXISTS file_tracking;        
+            CREATE TABLE file_tracking (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT NOT NULL,
             filename TEXT NOT NULL,
@@ -141,10 +144,10 @@ def start_server(host="127.0.0.1", port=7778):
 
     except KeyboardInterrupt:
         print(f"\n[{SERVER_NAME}] Shutting down server...")
+        close()
     finally:
         try:
             server_socket.close()
-            close()
         except Exception:
             pass
 

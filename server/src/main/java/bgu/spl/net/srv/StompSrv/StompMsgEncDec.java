@@ -8,6 +8,9 @@ public class StompMsgEncDec implements MessageEncoderDecoder<String> {
 
     ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
 
+    /*
+    Decodes bytes read from socket, construct a frame when a delimiter is read ('\0')
+    */
     public String decodeNextByte(byte nextByte)
     {
         if(nextByte == 0)
@@ -22,6 +25,9 @@ public class StompMsgEncDec implements MessageEncoderDecoder<String> {
         return null;
     }
 
+    /*
+    Method that encodes a message before transport.
+    */
     public byte[] encode(String message)
     {
         return message.getBytes(StandardCharsets.UTF_8);

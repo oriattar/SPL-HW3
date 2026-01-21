@@ -1,6 +1,7 @@
 package bgu.spl.net.srv.StompSrv;
 
 import bgu.spl.net.api.*;
+import bgu.spl.net.impl.data.Database;
 import bgu.spl.net.srv.*;
 
 import java.io.IOException;
@@ -49,6 +50,12 @@ public class StompReactor implements Server<String> {
 
             this.selector = selector; //just to be able to close
 
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> { // will run after we interrupt
+                System.out.println("server closed!!!");
+                Database.getInstance().printReport();
+                pool.shutdown();
+            }));
+
             serverSock.bind(new InetSocketAddress(port));
             serverSock.configureBlocking(false);
             serverSock.register(selector, SelectionKey.OP_ACCEPT);
@@ -82,6 +89,7 @@ public class StompReactor implements Server<String> {
         }
 
         System.out.println("server closed!!!");
+        Database.getInstance().printReport();
         pool.shutdown();
     }
 

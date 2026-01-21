@@ -17,11 +17,4 @@ public interface Connections<T> {
     void send(String channel, T msg);
 
     void disconnect(int connectionId);
-
-    void login(String userName,String password,int connectionId);
-
-    void logout(String userName);
-
-    boolean isUserLoggedIn(String userName);
-    
 }

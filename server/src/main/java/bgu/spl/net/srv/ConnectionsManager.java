@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import bgu.spl.net.srv.authen.AuthenticationManager;
 public class ConnectionsManager<T> implements Connections<T> {
 
     /*
@@ -15,7 +14,6 @@ public class ConnectionsManager<T> implements Connections<T> {
     */
     private ConcurrentHashMap<Integer,ConnectionHandler<T>> connecetions;
     private SubscriptionManager subManager;
-    private AuthenticationManager authManager;
     private AtomicInteger idGen;
    
     
@@ -25,7 +23,6 @@ public class ConnectionsManager<T> implements Connections<T> {
     public ConnectionsManager(){
         this.connecetions = new ConcurrentHashMap<>();
         this.subManager = new SubscriptionManager();
-        authManager = new AuthenticationManager();
         this.idGen = new AtomicInteger(0);
     }
 
@@ -86,8 +83,7 @@ public class ConnectionsManager<T> implements Connections<T> {
     Deletes a connection from the dict using the connection ID.
     */
     public void disconnect(int connectionId){
-        
-        System.out.println("Disconnecting user with id: " + connectionId);
+    
         this.connecetions.remove(connectionId);
         this.subManager.disconnectUser(connectionId);
     }
@@ -99,37 +95,5 @@ public class ConnectionsManager<T> implements Connections<T> {
     {
         return this.subManager.isSubscribedToChannel(channel,connectionId);
     }
-    /*
-    Method that handles user login and registration.
-    */
-    public void login(String userName,String password,int conId)
-    {
-        if(!this.authManager.isRegistered(userName))
-        {
-            this.authManager.register(userName, password,conId);
-            System.out.println("Registered new user: " + userName);
-        }
-        else
-        {
-            authManager.login(userName, password,conId);
-            System.out.println("User connected with name: " + userName);
-        }
-
-    }
-    /*
-    Handles user logout from auth manager.
-    */
-    public void logout(String userName)
-    {
-        this.authManager.logout(userName);
-        System.out.println("User logged out with name: " + userName);
-    }
-
-    /*
-    Method that checks if a user is logged in.
-    */
-    public boolean isUserLoggedIn(String userName)
-    {
-        return this.authManager.isConnected(userName);
-    }
+    
 }

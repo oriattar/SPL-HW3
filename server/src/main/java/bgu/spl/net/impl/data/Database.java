@@ -49,7 +49,7 @@ public class Database {
 			
 		} catch (Exception e) {
 			System.err.println("SQL Error: " + e.getMessage());
-			return "ERROR:" + e.getMessage();
+			throw new RuntimeException("ERROR:" + e.getMessage());
 		}
 	}
 
@@ -66,6 +66,15 @@ public class Database {
 		connectionsIdMap.putIfAbsent(user.getConnectionId(), user);
 	}
 
+	public boolean isLoggedIn(String username)
+	{
+		User u = this.userMap.get(username);
+		if(u == null)
+			return false;
+		synchronized (u){
+			return u.isLoggedIn();
+		}
+	}
 	public LoginStatus login(int connectionId, String username, String password) {
 		if (connectionsIdMap.containsKey(connectionId)) {
 			return LoginStatus.CLIENT_ALREADY_CONNECTED;
@@ -76,10 +85,18 @@ public class Database {
 				"INSERT INTO users (username, password, registration_date) VALUES ('%s', '%s', datetime('now'))",
 				escapeSql(username), escapeSql(password)
 			);
-			executeSQL(sql);
+			try{
+				executeSQL(sql);
+				logLogin(username); //if connection was not established
+			}
+			catch (Exception e)
+			{
+				this.connectionsIdMap.remove(connectionId);
+				this.userMap.remove(username); // deletes inserted user in case of error
+				throw e;
+			}
 			
 			// Log login
-			logLogin(username);
 			return LoginStatus.ADDED_NEW_USER;
 		} else {
 			LoginStatus status = userExistsCase(connectionId, username, password);

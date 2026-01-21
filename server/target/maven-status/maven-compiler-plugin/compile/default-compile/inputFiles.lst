@@ -20,7 +20,6 @@
 /workspaces/SPL-HW3/server/src/main/java/bgu/spl/net/srv/NonBlockingConnectionHandler.java
 /workspaces/SPL-HW3/server/src/main/java/bgu/spl/net/impl/stomp/StompServer.java
 /workspaces/SPL-HW3/server/src/main/java/bgu/spl/net/srv/ActorThreadPool.java
-/workspaces/SPL-HW3/server/src/main/java/bgu/spl/net/srv/authen/AuthenticationManager.java
 /workspaces/SPL-HW3/server/src/main/java/bgu/spl/net/impl/rci/ObjectEncoderDecoder.java
 /workspaces/SPL-HW3/server/src/main/java/bgu/spl/net/srv/StompSrv/StompNonBlockingConnectionHandler.java
 /workspaces/SPL-HW3/server/src/main/java/bgu/spl/net/srv/Server.java

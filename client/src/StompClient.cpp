@@ -32,6 +32,10 @@ using std::endl;
 
 std::mutex receiptMutex;
 std::mutex updateMutex;
+
+std::mutex connectionMutex;
+std::condition_variable cv; // for wait notify logic
+
 ConnectionHandler * connect(string& host,string& port);
 void addReceipt(int rec,string action,std::map<int,string>& receipts);
 string removeReceipt(int rec,std::map<int,string>& receipts);
@@ -39,11 +43,12 @@ void threadLoop(StompProtocol& protocol,std::map<int,string>& receipts);
 std::vector<string> parseCommand(string& input,int len);
 std::vector<string> split(string input,char splitBy);
 std::vector<string> getLines(string& str);
+void process(std::map<int, std::string>& reciepts,std::map<string,int>& subscriptions,std::vector<string>& command,
+StompProtocol& protocol,int receiptIdGen,int subIdGen);
 
 
 int main(int argc, char *argv[]) {
 	
-	bool isConnected = false;
 	ConnectionHandler * con = nullptr;
 	const short bufsize = 1024;
     char buf[bufsize];
@@ -55,40 +60,9 @@ int main(int argc, char *argv[]) {
 
 	StompProtocol protocol;
 	
-	while(!isConnected) // first of we must connect to server before we use any commands
-	{
-		try
-		{
-			cout << "Please login to host:" << endl;
-        	std::cin.getline(buf, bufsize);
-			std::string line(buf);
-			int len=line.length();
-
-			std::vector<string> command = parseCommand(line,len);
-			string comm= command[COMMAND];
-			if(comm != "login")
-				std::cout << "You first must use login before using any other commands" << std::endl;
-			else
-			{
-				std::vector<string> hostInfo = split(command[HOST_ADDRESS],':');
-				con = connect(hostInfo[0],hostInfo[1]); // connecting
-				protocol.start(con,command[USERNAME]);
-
-				protocol.handleLogin(command[HOST_ADDRESS],command[USERNAME],command[PASSWORD]); // sends login
-				isConnected = true;
-			}
-			
-		}
-		catch(const std::exception& e)
-		{
-			std::cerr << e.what() << '\n';
-			protocol.setShouldTerminate(true);
-		}
-	}
-	
-	
 	std::thread t(threadLoop,std::ref(protocol),std::ref(reciepts)); //start the thread that listens to server
 	
+	cout<< "enter command" << endl;
 	while(!protocol.shouldTerminate()) // runs until should terminate
 	{
 		try
@@ -96,65 +70,39 @@ int main(int argc, char *argv[]) {
 			std::cin.getline(buf, bufsize);
 			std::string line(buf);
 			int len=line.length();
-			if(protocol.shouldTerminate())
-				throw std::runtime_error("Connection was closed by the server.");
 
 			std::vector<string> command = parseCommand(line,len); // parse command
 			string comm= command[COMMAND];
 			if(comm=="login") //login command
-				protocol.handleLogin(command[HOST_ADDRESS],command[USERNAME],command[PASSWORD]);
+			{
+				std::vector<string> hostInfo = split(command[HOST_ADDRESS],':');
+				if(con != nullptr)
+				{
+					con->close(); // wakers waiting thread
+					protocol.setIsConnected(false);
+					delete con;
+					con = nullptr;
+				}
+				reciepts.clear();
+				subscriptions.clear();// clearing maps on new connection.
+				con = connect(hostInfo[0],hostInfo[1]); // connecting
+				protocol.start(con,command[USERNAME]);
 
-			else if(comm =="join")
-			{
-				if(subscriptions.find(command[TOPIC])!= subscriptions.end()) //locates in subscription map first, send frame if not subscribed
-					cout<< "User already subscribed to the topic." << endl;
-				else
-				{
-					subscriptions[command[TOPIC]] = subIdGen; // saves subscription in map
-					addReceipt(receiptIdGen,"SUB:" + command[TOPIC],reciepts); //put a receipt in the receipt map in the format id->action:topic
-					protocol.handleJoin(command[TOPIC],subIdGen,receiptIdGen);
-					subIdGen++;
-					receiptIdGen++;
-				}
-			}
-			else if(comm == "exit") //exit command
-			{
-				if(subscriptions.find(command[TOPIC])== subscriptions.end())
-					cout<< "You are subscribed to that topic." << endl;
-				else
-				{
-					addReceipt(receiptIdGen,"UNSUB:" + command[TOPIC],reciepts);
-					protocol.handleExit(command[TOPIC],subscriptions[command[TOPIC]],receiptIdGen);
-					subscriptions.erase(command[TOPIC]);
-					receiptIdGen++;
-				}
-			}
-			else if(comm == "report")
-			{
-				protocol.handleReport(command[FILE_PATH]);
-				cout << "Report was sent." << endl;
-			}
-			else if(comm == "logout")
-			{
-				addReceipt(receiptIdGen,"LOGOUT:LOGOUT",reciepts);
-				protocol.handleLogout(receiptIdGen);
-				receiptIdGen++;
-				break;
-			}
-			else if(comm == "summary")
-			{
-				protocol.handleSummary(command[TOPIC],command[USERNAME],command[SUMMARY_FILE_INDEX]);
-				cout << "A summary was created at:" + command[SUMMARY_FILE_INDEX] << endl;
+				protocol.handleLogin(command[HOST_ADDRESS],command[USERNAME],command[PASSWORD]); // sends login
 			}
 			else
 			{
-				cout << "Unknown command: " + comm +" try again." << endl;
+				if(!protocol.getIsConnected())
+					cout << "You first must login to host before using any commands other than login." << endl;
+				else
+				{
+					process(reciepts,subscriptions,command,protocol,receiptIdGen,subIdGen);
+				}
 			}
 		}
 		catch(const std::exception& e)
 		{
 			std::cerr << e.what() << '\n';
-			protocol.setShouldTerminate(true);
 		}
 	}
 
@@ -177,6 +125,58 @@ ConnectionHandler * connect(string& host,string& port) {
 	
 	return ch;
 }
+
+void process(std::map<int, std::string>& reciepts,std::map<string,int>& subscriptions,std::vector<string>& command,
+StompProtocol& protocol,int receiptIdGen,int subIdGen)
+{
+	if(command[COMMAND] =="join")
+	{
+		if(subscriptions.find(command[TOPIC])!= subscriptions.end()) //locates in subscription map first, send frame if not subscribed
+			cout<< "User already subscribed to the topic." << endl;
+		else
+		{
+					
+			subscriptions[command[TOPIC]] = subIdGen; // saves subscription in map
+			addReceipt(receiptIdGen,"SUB:" + command[TOPIC],reciepts); //put a receipt in the receipt map in the format id->action:topic
+			protocol.handleJoin(command[TOPIC],subIdGen,receiptIdGen);
+			subIdGen++;
+			receiptIdGen++;
+		}
+	}
+	else if(command[COMMAND] == "exit") //exit command
+	{
+		if(subscriptions.find(command[TOPIC])== subscriptions.end())
+			cout<< "You are subscribed to that topic." << endl;
+		else
+		{
+			addReceipt(receiptIdGen,"UNSUB:" + command[TOPIC],reciepts);
+			protocol.handleExit(command[TOPIC],subscriptions[command[TOPIC]],receiptIdGen);
+			subscriptions.erase(command[TOPIC]);
+			receiptIdGen++;
+		}
+	}
+	else if(command[COMMAND] == "report")
+	{
+		protocol.handleReport(command[FILE_PATH]);
+		cout << "Report was sent." << endl;
+	}
+	else if(command[COMMAND] == "logout")
+	{
+		addReceipt(receiptIdGen,"LOGOUT:LOGOUT",reciepts);
+		protocol.handleLogout(receiptIdGen);
+		receiptIdGen++;
+	}
+	else if(command[COMMAND] == "summary")
+	{
+		protocol.handleSummary(command[TOPIC],command[USERNAME],command[SUMMARY_FILE_INDEX]);
+		cout << "A summary was created at:" + command[SUMMARY_FILE_INDEX] << endl;
+	}
+	else
+	{
+		cout << "Unknown command: " + command[COMMAND] +" try again." << endl;
+	}
+}
+
 /*
 Adds a receipt to the common map, locking the mutex and frees it.
 */
@@ -206,14 +206,18 @@ void threadLoop(StompProtocol& protocol,std::map<int,string>& receipts)
 	{
 		try
 		{
-			protocol.parseResponse(receipts);
+			std::unique_lock<std::mutex> lock(connectionMutex);
+			while(!protocol.getIsConnected())
+				cv.wait(lock);
+
+			lock.unlock();
+			protocol.parseResponse(receipts); // reads and act according to frame
 		}
 		catch(const std::exception& e) // if there was an error terminate the thread
 		{
 			cout << e.what() << endl;
-			protocol.setShouldTerminate(true);
+			protocol.setIsConnected(false);
 		}
-
 	}
 }
 /*
@@ -288,13 +292,23 @@ Stomp protocol implemintations
 
 =================================
 */
-StompProtocol::StompProtocol():ch(nullptr),_username(""),shouldTerminateField(false)
+StompProtocol::StompProtocol():ch(nullptr),_username(""),shouldTerminateField(false),isConnected(false)
 {}
 
 StompProtocol::~StompProtocol()
 {
 	this->ch->close(); //terminating
 	delete this->ch; // deletes allocated ch
+}
+/*
+Method to set is connected to the given status.
+*/
+void StompProtocol::setIsConnected(bool status)
+{
+	std::lock_guard<std::mutex> lock(connectionMutex);
+	this->isConnected = status;
+
+	cv.notify_all(); //wakes waiting thread
 }
 
 /*
@@ -304,6 +318,15 @@ void StompProtocol::start(ConnectionHandler * ch, string username)
 {
 	this->ch = ch;
 	this->_username = username;
+	this->setIsConnected(true);
+}
+
+/*
+getters for isConnected
+*/
+bool StompProtocol::getIsConnected()
+{
+	return this->isConnected;
 }
 
 /*
@@ -370,7 +393,10 @@ void StompProtocol::handleReport(string& filePath)
 	{
 		Event curr = events[i];
 		string body = ConstructEventFrame(curr); // consruct body for the frame
-		string frame = "SEND\ndestination:/" + game +"\nfile:"+filePath+"\n\n" + body;
+		string frame = "SEND\ndestination:/" + game;
+		if(i == 0) // first frame sends the file name to log
+			frame+="\nfile-name:"+filePath;
+		frame += +"\n\n" + body;
 		if (this->shouldTerminate() ||!this->ch->sendFrameAscii(frame, '\0'))  //sends frame
         	throw std::runtime_error("A frame could not be sent to the server - shuting down");
 
@@ -510,7 +536,7 @@ void StompProtocol::parseResponse(std::map<int,string>& receipts)
 	string mes;
 	if (!this->ch->getFrameAscii(mes,'\0')) { // reads a frane
         cout << "Disconnected. Exiting...\n" << endl;
-    	throw std::runtime_error("Connection was terimnated");
+    	throw std::runtime_error("Connection was closed, login:\n");
     }
 	string frameType;
 			
@@ -518,8 +544,8 @@ void StompProtocol::parseResponse(std::map<int,string>& receipts)
 	frameType = mes.substr(0, pos); //get the frame type sent from server
 	if(frameType == "ERROR") // resonse for error
 	{
-		cout << "Conncetion is terminated\npress anything to close." << endl;
-		throw std::runtime_error("Connection was terimnated");
+		cout << mes << endl;
+		throw std::runtime_error("Connection was closed, login:\n");
 	}
 	else if(frameType == "CONNECTED") // reponse for connected
 	{
@@ -539,7 +565,7 @@ void StompProtocol::parseResponse(std::map<int,string>& receipts)
 		else // logout receipt
 		{
 			cout << "Disconnected from the server" << endl;
-			throw std::runtime_error("Connection was terimnated");
+			throw std::runtime_error("Connection was terimnated.");
 		}
 	}
 	else if(frameType == "MESSAGE") // reponds to a message frame

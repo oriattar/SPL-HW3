@@ -2,7 +2,8 @@ package bgu.spl.net.srv.StompSrv;
 
 import bgu.spl.net.api.MessageEncoderDecoder;
 import bgu.spl.net.api.StompMessagingProtocol;
-import bgu.spl.net.srv.Connections; 
+import bgu.spl.net.impl.data.Database;
+
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -41,6 +42,11 @@ public abstract class StompBaseServer implements Server<String> {
 
             this.sock = serverSock; //just to be able to close
 
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> { // will run after we interrupt
+                System.out.println("server closed!!!");
+                Database.getInstance().printReport();
+            }));
+
             while (!Thread.currentThread().isInterrupted()) {
 
                 Socket clientSock = serverSock.accept();
@@ -61,6 +67,7 @@ public abstract class StompBaseServer implements Server<String> {
         }
 
         System.out.println("server closed!!!");
+        Database.getInstance().printReport();
     }
 
     @Override

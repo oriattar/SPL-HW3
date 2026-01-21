@@ -18,6 +18,7 @@ private:
     ConnectionHandler * ch;
     string _username;
     std::atomic<bool> shouldTerminateField;
+    std::atomic<bool> isConnected;
     std::map<string,Game> Games;
 
 public:
@@ -34,7 +35,9 @@ public:
 
    
     bool shouldTerminate();
+    bool getIsConnected();
     void setShouldTerminate(bool status);
+    void setIsConnected(bool status);
     void addUpdate(string& game,string& user,Event& e);
     
     Event parseToEvent(std::vector<string> lines);
